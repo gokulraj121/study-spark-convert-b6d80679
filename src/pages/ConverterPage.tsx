@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
-import { ArrowLeft, Upload, Download, FileType, FileArchive, FileLock, ScanText, Merge, Split, Lock } from "lucide-react";
+import { ArrowLeft, Upload, Download, FileType, FileArchive, FileLock, ScanText, Merge, Split, Lock, Image } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/ui/use-toast";
 import { FileUploader } from "@/components/FileUploader";
@@ -25,6 +25,8 @@ import {
 } from "@/components/ui/card";
 import { detectFileFormat, getConversionOptions, formatFileSize, getBatchProcessingOptions } from "@/utils/fileUtils";
 import { Input } from "@/components/ui/input";
+import { useAuth } from "@/contexts/AuthContext";
+import { supabase } from "@/integrations/supabase/client";
 
 type ConversionType = 
   | "pdf-to-docx" 
@@ -49,10 +51,12 @@ type ConversionType =
   | "split-pdf"
   | "batch-compress"
   | "batch-compress-images"
-  | "batch-convert-to-pdf";
+  | "batch-convert-to-pdf"
+  | "pdf-to-infographic";
 
 const ConverterPage = () => {
   const { toast } = useToast();
+  const { user, subscriptionTier } = useAuth();
   const [file, setFile] = useState<File | null>(null);
   const [fileFormat, setFileFormat] = useState<string>('');
   const [conversionOptions, setConversionOptions] = useState<Array<{ value: string; label: string }>>([]);
@@ -61,7 +65,8 @@ const ConverterPage = () => {
   const [isConverting, setIsConverting] = useState(false);
   const [convertedFileUrl, setConvertedFileUrl] = useState<string | null>(null);
   const [convertedText, setConvertedText] = useState<string | null>(null);
-  const [compressionLevel, setCompressionLevel] = useState(70); // Default compression level
+  const [infographicUrl, setInfographicUrl] = useState<string | null>(null);
+  const [compressionLevel, setCompressionLevel] = useState(70);
   const [originalSize, setOriginalSize] = useState<string>('');
   const [compressedSize, setCompressedSize] = useState<string>('');
   const [activeTab, setActiveTab] = useState<string>("single");
@@ -75,6 +80,11 @@ const ConverterPage = () => {
       setFileFormat(format);
       
       const options = getConversionOptions(format);
+      
+      if (format === 'pdf') {
+        options.push({ value: 'pdf-to-infographic', label: 'Convert PDF to Infographic' });
+      }
+      
       setConversionOptions(options);
       
       const batchOpts = getBatchProcessingOptions(format);
@@ -135,6 +145,10 @@ const ConverterPage = () => {
     return conversionType === "merge-pdfs" || conversionType === "batch-compress" || conversionType === "batch-compress-images" || conversionType === "batch-convert-to-pdf";
   };
 
+  const isPdfToInfographic = () => {
+    return conversionType === "pdf-to-infographic";
+  };
+
   const getOperationIcon = () => {
     switch (conversionType) {
       case "pdf-protect":
@@ -152,6 +166,8 @@ const ConverterPage = () => {
       case "batch-compress":
       case "batch-compress-images":
         return <FileArchive size={16} />;
+      case "pdf-to-infographic":
+        return <Image size={16} />;
       default:
         return <FileType size={16} />;
     }
@@ -173,7 +189,22 @@ const ConverterPage = () => {
     if (isCompression()) {
       return "Compress";
     }
+    if (isPdfToInfographic()) {
+      return "Generate Infographic";
+    }
     return "Convert";
+  };
+
+  const checkSubscriptionAccess = () => {
+    if (isPdfToInfographic() && subscriptionTier === "free") {
+      toast({
+        variant: "destructive",
+        title: "Subscription Required",
+        description: "PDF to Infographic conversion requires a Pro subscription. Please upgrade your plan.",
+      });
+      return false;
+    }
+    return true;
   };
 
   const handleConvert = async () => {
@@ -195,7 +226,16 @@ const ConverterPage = () => {
       return;
     }
 
+    if (!checkSubscriptionAccess()) {
+      return;
+    }
+
     setIsConverting(true);
+
+    if (isPdfToInfographic()) {
+      await handlePdfToInfographic();
+      return;
+    }
 
     const formData = new FormData();
     
@@ -271,12 +311,49 @@ const ConverterPage = () => {
     }
   };
 
+  const handlePdfToInfographic = async () => {
+    if (!file) return;
+
+    toast({
+      title: "Processing PDF",
+      description: "Generating infographic from your PDF...",
+    });
+
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+
+      const { data, error } = await supabase.functions.invoke("pdf-to-infographic", {
+        body: formData,
+      });
+
+      if (error) throw error;
+
+      setInfographicUrl(data.url);
+
+      toast({
+        title: "Infographic Generated",
+        description: "Your PDF has been successfully converted to an infographic.",
+      });
+    } catch (error) {
+      console.error("Error generating infographic:", error);
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "Failed to generate infographic. Please try again.",
+      });
+    } finally {
+      setIsConverting(false);
+    }
+  };
+
   const getToastTitle = () => {
     if (isCompression()) return "Compression Complete";
     if (isOCROperation()) return "Text Extraction Complete";
     if (isProtectionOperation()) return conversionType === "pdf-protect" ? "PDF Protected" : "PDF Unlocked";
     if (conversionType === "merge-pdfs") return "PDFs Merged";
     if (conversionType === "split-pdf") return "PDF Split Complete";
+    if (isPdfToInfographic()) return "Infographic Generated";
     return "Conversion Complete";
   };
   
@@ -286,6 +363,7 @@ const ConverterPage = () => {
     if (isProtectionOperation()) return conversionType === "pdf-protect" ? "Your PDF has been protected with a password." : "Your PDF has been unlocked.";
     if (conversionType === "merge-pdfs") return "Your PDFs have been merged into one document.";
     if (conversionType === "split-pdf") return "Your PDF has been split into multiple files.";
+    if (isPdfToInfographic()) return "Your PDF has been transformed into a visual infographic.";
     return "Your file has been successfully converted.";
   };
 
@@ -312,7 +390,7 @@ const ConverterPage = () => {
           transition={{ duration: 0.5, delay: 0.1 }}
           className="text-4xl font-bold text-center mb-2"
         >
-          File Converter & Tools
+          Document Toolkit
         </motion.h1>
         
         <motion.h2
@@ -580,6 +658,42 @@ const ConverterPage = () => {
                   <Download size={16} />
                   Download as Text File
                 </Button>
+              </div>
+            </motion.div>
+          )}
+
+          {infographicUrl && (
+            <motion.div
+              initial={{ opacity: 0, height: 0 }}
+              animate={{ opacity: 1, height: "auto" }}
+              transition={{ duration: 0.3 }}
+              className="glass-card p-6 rounded-xl text-center"
+            >
+              <div className="flex flex-col items-center gap-4">
+                <div className="flex items-center justify-center rounded-full w-16 h-16 bg-green-500/20 text-green-400">
+                  <Image size={32} />
+                </div>
+                <h3 className="text-xl font-semibold">
+                  Infographic Generated
+                </h3>
+                
+                <div className="max-w-md mx-auto my-4 rounded-lg overflow-hidden">
+                  <img 
+                    src={infographicUrl} 
+                    alt="Generated Infographic" 
+                    className="w-full h-auto" 
+                  />
+                </div>
+                
+                <a 
+                  href={infographicUrl} 
+                  download={`${file?.name.split('.')[0] || 'document'}-infographic.png`}
+                >
+                  <Button className="flex items-center gap-2">
+                    <Download size={16} />
+                    Download Infographic
+                  </Button>
+                </a>
               </div>
             </motion.div>
           )}

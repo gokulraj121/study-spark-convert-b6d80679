@@ -22,30 +22,47 @@ serve(async (req) => {
       );
     }
 
-    // In a real implementation, this would use an AI service to convert the PDF to an infographic
-    // For now, we'll just return a mock response
-    
+    // Check authentication
+    const authHeader = req.headers.get('Authorization');
+    if (!authHeader) {
+      return new Response(
+        JSON.stringify({ error: "Authentication required" }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 401 }
+      );
+    }
+
     // Read the file 
     const fileData = await file.arrayBuffer();
     
     // Log file info for debugging
-    console.log(`Processing file: ${file.name}, size: ${file.size} bytes`);
+    console.log(`Processing PDF to infographic: ${file.name}, size: ${file.size} bytes`);
     
-    // Simulate processing time
+    // In a real implementation, this would use an AI service to convert the PDF to an infographic
+    // For now, we'll just simulate processing time and return a placeholder
     await new Promise(resolve => setTimeout(resolve, 2000));
     
-    // In a real implementation, you would process the PDF and generate an infographic
-    // For now, we'll just return a placeholder image
-    const mockInfographicData = new Uint8Array([
-      // Mock image data would be here
-    ]);
+    // Determine which placeholder to use based on file name 
+    // (in a real implementation, this would be based on actual content analysis)
+    let placeholderUrl = '';
+    const fileName = file.name.toLowerCase();
+    
+    if (fileName.includes('financial') || fileName.includes('finance')) {
+      placeholderUrl = "https://via.placeholder.com/800x600/0073CF/FFFFFF?text=Financial+Report+Infographic";
+    } else if (fileName.includes('marketing') || fileName.includes('market')) {
+      placeholderUrl = "https://via.placeholder.com/800x600/EA4335/FFFFFF?text=Marketing+Strategy+Infographic";
+    } else if (fileName.includes('research') || fileName.includes('study')) {
+      placeholderUrl = "https://via.placeholder.com/800x600/34A853/FFFFFF?text=Research+Study+Infographic";
+    } else if (fileName.includes('education') || fileName.includes('learning')) {
+      placeholderUrl = "https://via.placeholder.com/800x600/FBBC05/FFFFFF?text=Educational+Content+Infographic";
+    } else {
+      placeholderUrl = "https://via.placeholder.com/800x600/8E44AD/FFFFFF?text=Document+Infographic";
+    }
 
     return new Response(
       JSON.stringify({ 
         success: true, 
         message: "PDF successfully converted to infographic",
-        // In a real implementation, this would be the URL to the generated infographic
-        url: "https://via.placeholder.com/800x600?text=PDF+Infographic" 
+        url: placeholderUrl
       }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );

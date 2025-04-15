@@ -1,4 +1,3 @@
-
 /**
  * File utilities for format detection and compression
  */
@@ -38,16 +37,17 @@ export const getConversionOptions = (fileFormat: string): { value: string, label
   switch(fileFormat) {
     case 'pdf':
       return [
-        { value: 'pdf-to-docx', label: 'Convert to Word' },
-        { value: 'pdf-to-xlsx', label: 'Convert to Excel' },
-        { value: 'pdf-to-pptx', label: 'Convert to PowerPoint' },
-        { value: 'pdf-to-jpg', label: 'Convert to JPG' },
-        { value: 'pdf-to-infographic', label: 'Convert to Infographic' },
-        { value: 'pdf-to-text', label: 'Extract Text' },
+        { value: 'pdf-to-docx', label: 'Convert PDF to Word' },
+        { value: 'pdf-to-xlsx', label: 'Convert PDF to Excel' },
+        { value: 'pdf-to-pptx', label: 'Convert PDF to PowerPoint' },
+        { value: 'pdf-to-jpg', label: 'Convert PDF to JPG' },
+        { value: 'pdf-to-text', label: 'Extract Text from PDF' },
         { value: 'pdf-compress', label: 'Compress PDF' },
+        { value: 'pdf-ocr', label: 'OCR PDF' },
         { value: 'pdf-protect', label: 'Protect PDF' },
         { value: 'pdf-unlock', label: 'Unlock PDF' },
-        { value: 'pdf-ocr', label: 'OCR (Text Recognition)' }
+        { value: 'split-pdf', label: 'Split PDF' },
+        { value: 'pdf-to-infographic', label: 'Convert PDF to Infographic' }
       ];
     case 'word':
       return [
