@@ -1,7 +1,6 @@
-
 import { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
-import { ArrowLeft, Upload, Download, FileType, Compress } from "lucide-react";
+import { ArrowLeft, Upload, Download, FileType, FileArchive } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/ui/use-toast";
 import { FileUploader } from "@/components/FileUploader";
@@ -40,17 +39,14 @@ const ConverterPage = () => {
   const [originalSize, setOriginalSize] = useState<string>('');
   const [compressedSize, setCompressedSize] = useState<string>('');
 
-  // Detect file format when file changes
   useEffect(() => {
     if (file) {
       const format = detectFileFormat(file.name);
       setFileFormat(format);
       
-      // Get available conversion options
       const options = getConversionOptions(format);
       setConversionOptions(options);
       
-      // Set default conversion type if options exist
       if (options.length > 0) {
         setConversionType(options[0].value as ConversionType);
       } else {
@@ -62,7 +58,6 @@ const ConverterPage = () => {
         });
       }
       
-      // Set original file size
       setOriginalSize(formatFileSize(file.size));
       setCompressedSize('');
     } else {
@@ -96,7 +91,6 @@ const ConverterPage = () => {
     formData.append("file", file);
     formData.append("conversion_type", conversionType);
     
-    // Add compression level if it's a compression operation
     if (conversionType === "image-compress" || conversionType === "pdf-compress") {
       formData.append("compression_level", compressionLevel.toString());
     }
@@ -126,7 +120,6 @@ const ConverterPage = () => {
         const url = URL.createObjectURL(blob);
         setConvertedFileUrl(url);
         
-        // Set compressed size if it's a compression operation
         if (isCompression()) {
           setCompressedSize(formatFileSize(blob.size));
         }
@@ -152,7 +145,6 @@ const ConverterPage = () => {
     }
   };
 
-  // Check if the current conversion type is a compression operation
   const isCompression = () => {
     return conversionType === "image-compress" || conversionType === "pdf-compress";
   };
@@ -251,7 +243,7 @@ const ConverterPage = () => {
               >
                 {isConverting ? "Processing..." : isCompression() ? (
                   <>
-                    <Compress size={16} />
+                    <FileArchive size={16} />
                     Compress File
                   </>
                 ) : (
@@ -273,7 +265,7 @@ const ConverterPage = () => {
             >
               <div className="flex flex-col items-center gap-4">
                 <div className="flex items-center justify-center rounded-full w-16 h-16 bg-green-500/20 text-green-400">
-                  {isCompression() ? <Compress size={32} /> : <FileType size={32} />}
+                  {isCompression() ? <FileArchive size={32} /> : <FileType size={32} />}
                 </div>
                 <h3 className="text-xl font-semibold">
                   {isCompression() ? "Compression Complete!" : "Conversion Complete!"}
