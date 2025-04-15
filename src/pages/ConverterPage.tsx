@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
-import { ArrowLeft, Upload, Download, FileType, FileArchive, FileLock, FileUnlock, ScanText, Merge, Split, Lock } from "lucide-react";
+import { ArrowLeft, Upload, Download, FileType, FileArchive, FileLock, ScanText, Merge, Split, Lock } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/ui/use-toast";
 import { FileUploader } from "@/components/FileUploader";
@@ -200,12 +200,10 @@ const ConverterPage = () => {
     const formData = new FormData();
     
     if (isBatchOperation()) {
-      // For batch operations
       batchFiles.forEach((file) => {
         formData.append("files", file);
       });
     } else {
-      // For single file operations
       formData.append("file", file as File);
     }
     
@@ -235,8 +233,6 @@ const ConverterPage = () => {
           : "Converting your file...",
       });
 
-      // Note: This is a mock API call for frontend visualization
-      // In a real implementation, you would need to enhance the backend to support these operations
       const response = await fetch("http://localhost:8000/api/convert", {
         method: "POST",
         body: formData,
@@ -314,10 +310,19 @@ const ConverterPage = () => {
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5, delay: 0.1 }}
-          className="text-4xl font-bold text-center mb-8"
+          className="text-4xl font-bold text-center mb-2"
         >
           File Converter & Tools
         </motion.h1>
+        
+        <motion.h2
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5, delay: 0.2 }}
+          className="text-xl text-center text-gray-400 mb-8"
+        >
+          All-in-one Toolkit for your document needs
+        </motion.h2>
 
         <motion.div
           initial={{ opacity: 0, y: 20 }}

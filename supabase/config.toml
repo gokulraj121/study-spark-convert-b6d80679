@@ -1,1 +1,5 @@
+
 project_id = "cjjhgllqdxtwdxifzvvx"
+
+[functions.pdf-to-infographic]
+verify_jwt = true

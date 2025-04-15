@@ -42,6 +42,7 @@ export const getConversionOptions = (fileFormat: string): { value: string, label
         { value: 'pdf-to-xlsx', label: 'Convert to Excel' },
         { value: 'pdf-to-pptx', label: 'Convert to PowerPoint' },
         { value: 'pdf-to-jpg', label: 'Convert to JPG' },
+        { value: 'pdf-to-infographic', label: 'Convert to Infographic' },
         { value: 'pdf-to-text', label: 'Extract Text' },
         { value: 'pdf-compress', label: 'Compress PDF' },
         { value: 'pdf-protect', label: 'Protect PDF' },
