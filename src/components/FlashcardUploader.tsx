@@ -1,7 +1,7 @@
 
 import React, { useCallback, useState } from "react";
 import { useDropzone } from "react-dropzone";
-import { FilePdf, Upload } from "lucide-react";
+import { FileText, Upload } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { motion } from "framer-motion";
@@ -68,7 +68,7 @@ export const FlashcardUploader: React.FC<FlashcardUploaderProps> = ({
           className="flex flex-col items-center gap-4"
         >
           <div className="bg-blue-500/20 text-blue-400 p-4 rounded-full">
-            <FilePdf size={32} />
+            <FileText size={32} />
           </div>
           <div>
             <h3 className="text-xl font-medium">Upload PDF</h3>
