@@ -1,7 +1,7 @@
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
-import { ArrowLeft, Upload, Download, FileType } from "lucide-react";
+import { ArrowLeft, Upload, Download, FileType, Compress } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/ui/use-toast";
 import { FileUploader } from "@/components/FileUploader";
@@ -14,6 +14,8 @@ import {
   SelectItem
 } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
+import { Slider } from "@/components/ui/slider";
+import { detectFileFormat, getConversionOptions, formatFileSize } from "@/utils/fileUtils";
 
 type ConversionType = 
   | "pdf-to-docx" 
@@ -21,15 +23,56 @@ type ConversionType =
   | "jpg-to-png" 
   | "png-to-jpg" 
   | "image-to-text" 
-  | "pdf-to-text";
+  | "pdf-to-text"
+  | "image-compress"
+  | "pdf-compress";
 
 const ConverterPage = () => {
   const { toast } = useToast();
   const [file, setFile] = useState<File | null>(null);
-  const [conversionType, setConversionType] = useState<ConversionType>("pdf-to-docx");
+  const [fileFormat, setFileFormat] = useState<string>('');
+  const [conversionOptions, setConversionOptions] = useState<Array<{ value: string; label: string }>>([]);
+  const [conversionType, setConversionType] = useState<ConversionType | ''>('');
   const [isConverting, setIsConverting] = useState(false);
   const [convertedFileUrl, setConvertedFileUrl] = useState<string | null>(null);
   const [convertedText, setConvertedText] = useState<string | null>(null);
+  const [compressionLevel, setCompressionLevel] = useState(70); // Default compression level
+  const [originalSize, setOriginalSize] = useState<string>('');
+  const [compressedSize, setCompressedSize] = useState<string>('');
+
+  // Detect file format when file changes
+  useEffect(() => {
+    if (file) {
+      const format = detectFileFormat(file.name);
+      setFileFormat(format);
+      
+      // Get available conversion options
+      const options = getConversionOptions(format);
+      setConversionOptions(options);
+      
+      // Set default conversion type if options exist
+      if (options.length > 0) {
+        setConversionType(options[0].value as ConversionType);
+      } else {
+        setConversionType('');
+        toast({
+          variant: "destructive",
+          title: "Unsupported file format",
+          description: "This file format is not supported for conversion.",
+        });
+      }
+      
+      // Set original file size
+      setOriginalSize(formatFileSize(file.size));
+      setCompressedSize('');
+    } else {
+      setFileFormat('');
+      setConversionOptions([]);
+      setConversionType('');
+      setOriginalSize('');
+      setCompressedSize('');
+    }
+  }, [file, toast]);
 
   const handleUploadFile = (uploadedFile: File) => {
     setFile(uploadedFile);
@@ -38,11 +81,11 @@ const ConverterPage = () => {
   };
 
   const handleConvert = async () => {
-    if (!file) {
+    if (!file || !conversionType) {
       toast({
         variant: "destructive",
-        title: "No file selected",
-        description: "Please upload a file first.",
+        title: "No file or conversion selected",
+        description: "Please upload a file and select a conversion type.",
       });
       return;
     }
@@ -52,11 +95,18 @@ const ConverterPage = () => {
     const formData = new FormData();
     formData.append("file", file);
     formData.append("conversion_type", conversionType);
+    
+    // Add compression level if it's a compression operation
+    if (conversionType === "image-compress" || conversionType === "pdf-compress") {
+      formData.append("compression_level", compressionLevel.toString());
+    }
 
     try {
       toast({
-        title: "Converting File",
-        description: "Please wait while we process your file...",
+        title: "Processing File",
+        description: isCompression() 
+          ? "Compressing your file..." 
+          : "Converting your file...",
       });
 
       const response = await fetch("http://localhost:8000/api/convert", {
@@ -75,59 +125,36 @@ const ConverterPage = () => {
         const blob = await response.blob();
         const url = URL.createObjectURL(blob);
         setConvertedFileUrl(url);
+        
+        // Set compressed size if it's a compression operation
+        if (isCompression()) {
+          setCompressedSize(formatFileSize(blob.size));
+        }
       }
 
       toast({
-        title: "Conversion Complete",
-        description: "Your file has been successfully converted.",
+        title: isCompression() ? "Compression Complete" : "Conversion Complete",
+        description: isCompression() 
+          ? "Your file has been successfully compressed." 
+          : "Your file has been successfully converted.",
       });
     } catch (error) {
-      console.error("Error converting file:", error);
+      console.error("Error processing file:", error);
       toast({
         variant: "destructive",
         title: "Error",
-        description: "Failed to convert the file. Please try again.",
+        description: isCompression()
+          ? "Failed to compress the file. Please try again."
+          : "Failed to convert the file. Please try again.",
       });
     } finally {
       setIsConverting(false);
     }
   };
 
-  const getFileExtension = (filename: string) => {
-    return filename.split('.').pop()?.toLowerCase();
-  };
-
-  const isValidFileForConversion = () => {
-    if (!file) return false;
-    
-    const extension = getFileExtension(file.name);
-    switch(conversionType) {
-      case "pdf-to-docx":
-        return extension === "pdf";
-      case "docx-to-pdf":
-        return extension === "docx" || extension === "doc";
-      case "jpg-to-png":
-        return extension === "jpg" || extension === "jpeg";
-      case "png-to-jpg":
-        return extension === "png";
-      case "image-to-text":
-        return ["jpg", "jpeg", "png", "gif", "bmp"].includes(extension || "");
-      case "pdf-to-text":
-        return extension === "pdf";
-      default:
-        return false;
-    }
-  };
-
-  const getFileTypeLabel = (type: ConversionType) => {
-    switch(type) {
-      case "pdf-to-docx": return "PDF to Word";
-      case "docx-to-pdf": return "Word to PDF";
-      case "jpg-to-png": return "JPG to PNG";
-      case "png-to-jpg": return "PNG to JPG";
-      case "image-to-text": return "Image to Text (OCR)";
-      case "pdf-to-text": return "PDF to Text";
-    }
+  // Check if the current conversion type is a compression operation
+  const isCompression = () => {
+    return conversionType === "image-compress" || conversionType === "pdf-compress";
   };
 
   return (
@@ -153,7 +180,7 @@ const ConverterPage = () => {
           transition={{ duration: 0.5, delay: 0.1 }}
           className="text-4xl font-bold text-center mb-8"
         >
-          File Converter
+          File Converter & Compressor
         </motion.h1>
 
         <motion.div
@@ -163,56 +190,76 @@ const ConverterPage = () => {
           className="space-y-8"
         >
           <div className="glass-card p-6 rounded-xl">
-            <div className="mb-6">
-              <Label htmlFor="conversion-type">Conversion Type</Label>
-              <Select 
-                value={conversionType}
-                onValueChange={(value) => {
-                  setConversionType(value as ConversionType);
-                  setFile(null);
-                  setConvertedFileUrl(null);
-                  setConvertedText(null);
-                }}
-              >
-                <SelectTrigger className="w-full">
-                  <SelectValue placeholder="Select conversion type" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="pdf-to-docx">PDF to Word</SelectItem>
-                  <SelectItem value="docx-to-pdf">Word to PDF</SelectItem>
-                  <SelectItem value="jpg-to-png">JPG to PNG</SelectItem>
-                  <SelectItem value="png-to-jpg">PNG to JPG</SelectItem>
-                  <SelectItem value="image-to-text">Image to Text (OCR)</SelectItem>
-                  <SelectItem value="pdf-to-text">PDF to Text</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
             <FileUploader 
               onUpload={handleUploadFile} 
-              acceptedTypes={
-                conversionType === "pdf-to-docx" || conversionType === "pdf-to-text" 
-                  ? ".pdf" 
-                  : conversionType === "docx-to-pdf" 
-                  ? ".doc,.docx" 
-                  : conversionType === "jpg-to-png" 
-                  ? ".jpg,.jpeg" 
-                  : conversionType === "png-to-jpg" 
-                  ? ".png" 
-                  : conversionType === "image-to-text" 
-                  ? ".jpg,.jpeg,.png,.gif,.bmp" 
-                  : undefined
-              }
+              acceptedTypes=".pdf,.doc,.docx,.jpg,.jpeg,.png,.gif,.bmp"
               selectedFile={file}
             />
+
+            {file && conversionOptions.length > 0 && (
+              <div className="mt-6">
+                <Label htmlFor="conversion-type">Available Operations</Label>
+                <Select 
+                  value={conversionType}
+                  onValueChange={(value) => {
+                    setConversionType(value as ConversionType);
+                    setConvertedFileUrl(null);
+                    setConvertedText(null);
+                    setCompressedSize('');
+                  }}
+                >
+                  <SelectTrigger className="w-full">
+                    <SelectValue placeholder="Select operation" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {conversionOptions.map(option => (
+                      <SelectItem key={option.value} value={option.value}>
+                        {option.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+
+            {isCompression() && (
+              <div className="mt-6">
+                <Label htmlFor="compression-level" className="mb-2 block">
+                  Compression Level: {compressionLevel}%
+                </Label>
+                <Slider
+                  id="compression-level"
+                  min={10}
+                  max={100}
+                  step={5}
+                  value={[compressionLevel]}
+                  onValueChange={(values) => setCompressionLevel(values[0])}
+                  className="py-4"
+                />
+                <div className="flex justify-between text-sm text-gray-500">
+                  <span>Higher Quality</span>
+                  <span>Smaller Size</span>
+                </div>
+              </div>
+            )}
 
             <div className="mt-6 flex justify-center">
               <Button
                 onClick={handleConvert}
-                disabled={!isValidFileForConversion() || isConverting}
+                disabled={!file || !conversionType || isConverting}
                 className="flex items-center gap-2"
               >
-                {isConverting ? "Converting..." : "Convert File"}
+                {isConverting ? "Processing..." : isCompression() ? (
+                  <>
+                    <Compress size={16} />
+                    Compress File
+                  </>
+                ) : (
+                  <>
+                    <FileType size={16} />
+                    Convert File
+                  </>
+                )}
               </Button>
             </div>
           </div>
@@ -226,16 +273,38 @@ const ConverterPage = () => {
             >
               <div className="flex flex-col items-center gap-4">
                 <div className="flex items-center justify-center rounded-full w-16 h-16 bg-green-500/20 text-green-400">
-                  <FileType size={32} />
+                  {isCompression() ? <Compress size={32} /> : <FileType size={32} />}
                 </div>
-                <h3 className="text-xl font-semibold">Conversion Complete!</h3>
+                <h3 className="text-xl font-semibold">
+                  {isCompression() ? "Compression Complete!" : "Conversion Complete!"}
+                </h3>
+                
+                {isCompression() && (
+                  <div className="bg-black/30 p-3 rounded-lg text-sm mb-2 w-full max-w-xs">
+                    <div className="grid grid-cols-2 gap-2">
+                      <div>Original Size:</div>
+                      <div className="text-right font-medium">{originalSize}</div>
+                      <div>Compressed Size:</div>
+                      <div className="text-right font-medium text-green-400">{compressedSize}</div>
+                      {originalSize && compressedSize && (
+                        <>
+                          <div>Reduction:</div>
+                          <div className="text-right font-medium text-green-400">
+                            {Math.round((1 - (Number(compressedSize.split(' ')[0]) / Number(originalSize.split(' ')[0]))) * 100)}%
+                          </div>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                )}
+                
                 <a 
                   href={convertedFileUrl} 
-                  download={`converted-file.${conversionType.split("-to-")[1]}`}
+                  download={`${file?.name.split('.')[0]}-${isCompression() ? 'compressed' : 'converted'}.${conversionType.split("-to-")[1] || file?.name.split('.').pop()}`}
                 >
                   <Button className="flex items-center gap-2">
                     <Download size={16} />
-                    Download Converted File
+                    Download {isCompression() ? "Compressed" : "Converted"} File
                   </Button>
                 </a>
               </div>

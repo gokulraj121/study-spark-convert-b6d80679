@@ -51,47 +51,7 @@ def generate_flashcards_from_text(text: str) -> List[Dict[str, str]]:
     # For demo purposes, we'll create some simple flashcards based on text
     # In a real app, this would call GPT or another AI API
     
-    # Simple implementation to extract some content as flashcards
-    flashcards = []
-    paragraphs = text.split('\n\n')
-    
-    # Create simple Q&A pairs
-    for i, para in enumerate(paragraphs):
-        if len(para.strip()) < 10:  # Skip very short paragraphs
-            continue
-            
-        # Create a simple question
-        question = f"What is the key point from paragraph {i+1}?"
-        answer = para[:200] + "..." if len(para) > 200 else para
-        
-        flashcards.append({
-            "question": question,
-            "answer": answer
-        })
-        
-        # Create more specific questions if possible
-        words = para.split()
-        if len(words) > 5 and i % 2 == 0:  # Add variety to flashcards
-            key_term = " ".join(words[:2])
-            question = f"Explain the concept of {key_term}:"
-            answer = para[:150] + "..." if len(para) > 150 else para
-            flashcards.append({
-                "question": question,
-                "answer": answer
-            })
-    
-        # Limit to 15 flashcards for demo
-        if len(flashcards) >= 15:
-            break
-    
-    # If we didn't get enough flashcards, add some generic ones
-    if len(flashcards) < 5:
-        flashcards.extend([
-            {"question": "What are the main topics covered in this document?", 
-             "answer": "The document covers " + text[:100] + "..."},
-            {"question": "Summarize the key points from the document:", 
-             "answer": "The key points include information about " + text[50:150] + "..."}
-        ])
+    # ... keep existing code (generate flashcards logic)
     
     return flashcards
 
@@ -107,43 +67,81 @@ def extract_text_from_pdf(pdf_path: str) -> str:
         logger.error(f"Error extracting text from PDF: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to extract text from PDF: {str(e)}")
 
+# Function to compress images
+def compress_image(image_path: str, output_path: str, quality: int = 70):
+    try:
+        img = Image.open(image_path)
+        # Convert to RGB if necessary (for PNG with transparency)
+        if img.mode in ('RGBA', 'LA'):
+            background = Image.new('RGB', img.size, (255, 255, 255))
+            background.paste(img, mask=img.split()[3] if len(img.split()) > 3 else None)
+            img = background
+        
+        # Save with specified quality
+        img.save(output_path, optimize=True, quality=quality)
+        return output_path
+    except Exception as e:
+        logger.error(f"Error compressing image: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to compress image: {str(e)}")
+
+# Function to compress PDF
+def compress_pdf(pdf_path: str, output_path: str, quality: int = 70):
+    try:
+        # Open the PDF
+        pdf = fitz.open(pdf_path)
+        
+        # Create a new PDF
+        new_pdf = fitz.open()
+        
+        # Process each page
+        for page_num in range(len(pdf)):
+            page = pdf.load_page(page_num)
+            
+            # Render page to pixmap with compression
+            compression_factor = max(0.2, quality / 100)  # Map 10-100 to 0.2-1.0
+            dpi = int(72 * compression_factor)  # Lower DPI for more compression
+            
+            # Render page to pixmap
+            pix = page.get_pixmap(matrix=fitz.Matrix(compression_factor, compression_factor))
+            
+            # Create a new page in the output PDF
+            new_page = new_pdf.new_page(width=page.rect.width, height=page.rect.height)
+            
+            # Convert pixmap to image
+            img = Image.frombytes("RGB", [pix.width, pix.height], pix.samples)
+            
+            # Create a temporary image file
+            temp_img_path = f"{output_path}.temp.jpg"
+            img.save(temp_img_path, "JPEG", quality=quality)
+            
+            # Insert image into the PDF page
+            new_page.insert_image(new_page.rect, filename=temp_img_path)
+            
+            # Clean up temporary image
+            os.remove(temp_img_path)
+        
+        # Save the compressed PDF
+        new_pdf.save(output_path, deflate=True, garbage=3)
+        new_pdf.close()
+        pdf.close()
+        
+        return output_path
+    except Exception as e:
+        logger.error(f"Error compressing PDF: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to compress PDF: {str(e)}")
+
 @app.post("/api/flashcards")
 async def create_flashcards(file: UploadFile = File(...)):
     """Upload a PDF and convert it to flashcards"""
-    if not file.filename.endswith(".pdf"):
-        raise HTTPException(status_code=400, detail="Only PDF files are accepted")
-        
-    # Create temporary file
-    temp_file = UPLOAD_DIR / f"{uuid.uuid4()}.pdf"
-    try:
-        # Save uploaded file
-        with open(temp_file, "wb") as f:
-            shutil.copyfileobj(file.file, f)
-        
-        # Extract text from PDF
-        text = extract_text_from_pdf(str(temp_file))
-        
-        # Generate flashcards from text
-        flashcards = generate_flashcards_from_text(text)
-        
-        return {"flashcards": flashcards}
-    
-    except Exception as e:
-        logger.error(f"Error processing PDF: {e}")
-        raise HTTPException(status_code=500, detail=f"Error processing PDF: {str(e)}")
-    finally:
-        # Clean up
-        try:
-            os.unlink(temp_file)
-        except:
-            pass
+    # ... keep existing code (flashcard generation endpoint)
 
 @app.post("/api/convert")
 async def convert_file(
     file: UploadFile = File(...),
-    conversion_type: str = Form(...)
+    conversion_type: str = Form(...),
+    compression_level: int = Form(70)  # Default to 70% quality
 ):
-    """Convert files between different formats"""
+    """Convert files between different formats or compress them"""
     # Create a unique filename
     temp_dir = tempfile.mkdtemp(dir=UPLOAD_DIR)
     temp_in_path = Path(temp_dir) / file.filename
@@ -218,6 +216,28 @@ async def convert_file(
             # PDF to text
             text = extract_text_from_pdf(str(temp_in_path))
             return {"text": text}
+            
+        elif conversion_type == "image-compress":
+            # Image compression
+            output_path = Path(temp_dir) / f"{Path(file.filename).stem}-compressed.jpg"
+            compress_image(str(temp_in_path), str(output_path), compression_level)
+            
+            return FileResponse(
+                path=output_path, 
+                filename=f"{Path(file.filename).stem}-compressed.jpg",
+                media_type="image/jpeg"
+            )
+            
+        elif conversion_type == "pdf-compress":
+            # PDF compression
+            output_path = Path(temp_dir) / f"{Path(file.filename).stem}-compressed.pdf"
+            compress_pdf(str(temp_in_path), str(output_path), compression_level)
+            
+            return FileResponse(
+                path=output_path, 
+                filename=f"{Path(file.filename).stem}-compressed.pdf",
+                media_type="application/pdf"
+            )
             
         else:
             raise HTTPException(status_code=400, detail=f"Unsupported conversion type: {conversion_type}")
